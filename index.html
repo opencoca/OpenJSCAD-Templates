@@ -1,0 +1,240 @@
+
+<!DOCTYPE html>
+<html>
+<!--
+
+== OpenJSCAD.org, Copyright (c) 2016-2017, Licensed under MIT License ==
+   in conjunction with other libraries by various authors (see the individual files)
+
+Purpose:
+  This application provides an example of how to set Viewer options for BIG JSCAD designs
+-->
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+  <title>Organizer</title>
+  <link rel="stylesheet" href="lib/openjscad/big.css" type="text/css">
+  <link rel="stylesheet" href="lib/quicksettings/style.css" type="text/css">
+</head>
+
+<body>
+  <script src="lib/quicksettings/dist.js"></script>
+  <script>
+    window.CONFIG = {
+      boxWidth: 200,
+      boxDepth: 120,
+      boxHeight: 100,
+      shelfCount: 2,
+      moduleMargin: 0.5,
+      fingerJointWidth: 10,
+      thickness: 5.0,
+      kerf: 0.25,
+      buildType: 'Assembled',
+      quality: 'Draft',
+      shelves: {},
+      render: {
+        shell: true,
+        shelves: true,
+        modules: true
+      }
+     };
+
+    _shelfDefaults = {
+      moduleCount: 3,
+      height: 0,
+    }
+
+    _moduleDefaults = {
+      type: 'Drawer',
+      width: 0
+    }
+
+    for (var i=0; i < 50; i++) {
+      if (!CONFIG.shelves['Shelf ' + (i+1)]) {
+        var modules = {};
+        for (var j=0; j < 50; j++) {
+          modules['Module ' + (j+1)] = Object.assign({}, _moduleDefaults)
+        }
+        CONFIG.shelves['Shelf ' + (i+1)] = Object.assign({
+          modules: modules
+        }, _shelfDefaults);
+      }
+    }
+
+    QuickSettings.useExtStyleSheet();
+
+    var settings = QuickSettings.create(10, 10, "Main Settings");
+
+    settings.addNumber("Box Width", 0, 10000, CONFIG.boxWidth, 1, function(value) {
+      CONFIG.boxWidth = value;
+    });
+
+    settings.addNumber("Box Depth", 0, 10000, CONFIG.boxDepth, 1, function(value) {
+      CONFIG.boxDepth = value;
+    });
+
+    settings.addNumber("Box Height", 0, 10000, CONFIG.boxHeight, 1, function(value) {
+      CONFIG.boxHeight = value;
+    });
+
+    settings.addNumber("Shelf Count", 1, 50, CONFIG.shelfCount, 1, function(value) {
+      CONFIG.shelfCount = value;
+      generateShelfSettings('Shelf 1');
+    });
+
+    settings.addNumber("Module Margin", 0, 50, CONFIG.moduleMargin, 1, function(value) {
+      CONFIG.moduleMargin = value;
+    });
+
+    settings.addNumber("Material Thickness", 0, 10000, CONFIG.thickness, 0.1, function(value) {
+      CONFIG.thickness = value;
+    });
+
+    settings.addNumber("Finger Joint Width", 0, 10000, CONFIG.fingerJointWidth, 1, function(value) {
+      CONFIG.fingerJointWidth = value;
+    });
+
+
+    var renderSettings = QuickSettings.create(180, 10, "Render Settings");
+
+    renderSettings.addBoolean("Render Shell", CONFIG.render.shell, function(value) {
+      CONFIG.render.shell = value;
+    });
+    renderSettings.addBoolean("Render Shelves", CONFIG.render.shelves, function(value) {
+      CONFIG.render.shelves = value;
+    });
+    renderSettings.addBoolean("Render Modules", CONFIG.render.modules, function(value) {
+      CONFIG.render.modules = value;
+    });
+    renderSettings.addDropDown("Build Type", ["Assembled", "DXF"], function(value) {
+      CONFIG.buildType = value.value;
+    });
+
+
+    var shelfChoose = false;
+    var shelfSettings = false;
+    var drawerSettings = false;
+
+    function generateShelfSettings(selected) {
+      if (shelfChoose) {
+        shelfChoose.destroy()
+      }
+
+      shelfChoose = QuickSettings.create(window.innerWidth - 180, 40, "Shelf Settings Chooser");
+
+      shelfChoose.addDropDown("Select Shelf:", Array.from({length: CONFIG.shelfCount}, (x,i) => 'Shelf ' + (i+1)), function(value) {
+        showShelfSettings(value.value);
+      });
+
+      showShelfSettings(selected);
+    }
+
+    function showShelfSettings(shelfName) {
+      if (shelfSettings) {
+        shelfSettings.destroy()
+      }
+
+      shelfSettings = QuickSettings.create(window.innerWidth - 180, 120, shelfName + " Settings");
+
+      shelfSettings.addNumber("Height (0=auto)", 0, 1000, getShelfConfig(shelfName, 'height'), 1, function(value) {
+        setShelfConfig(shelfName, 'height', value);
+      });
+
+      shelfSettings.addNumber("Module Count", 0, 1000, getShelfConfig(shelfName, 'moduleCount'), 1, function(value) {
+        setShelfConfig(shelfName, 'moduleCount', value)
+        showShelfSettings(shelfName);
+      });
+
+      shelfSettings.addDropDown("Select Module:", Array.from({length: getShelfConfig(shelfName, 'moduleCount')}, (x,i) => 'Module ' + (i+1)), function(value) {
+        showModuleSettings(shelfName, value.value);
+      });
+
+      showModuleSettings(shelfName, 'Module 1');
+    }
+
+    function showModuleSettings(shelfName, moduleName) {
+      if (drawerSettings) {
+        drawerSettings.destroy()
+      }
+
+      drawerSettings = QuickSettings.create(window.innerWidth - 180, 280, shelfName + " " + moduleName + " Settings");
+
+      drawerSettings.addDropDown("Type", ["Drawer", "Empty"], function(value) {
+        setDrawerConfig(shelfName, moduleName, 'type', value.value)
+      });
+
+      //drawerSettings.setValue("Type", getDrawerConfig(shelfName, moduleName, 'type'))
+
+      drawerSettings.addNumber("Width (0 = fit)", 0, 1000, getDrawerConfig(shelfName, moduleName, 'width'), 1, function(value) {
+        setDrawerConfig(shelfName, moduleName, 'width', value)
+      });
+    }
+
+    function getDrawerConfig(shelfName, moduleName, key) {
+      if (!CONFIG.shelves[shelfName]) {
+        CONFIG.shelves[shelfName] = Object.assign({}, _shelfDefaults)
+      }
+
+      if (!CONFIG.shelves[shelfName].modules[moduleName]) {
+        CONFIG.shelves[shelfName].modules[moduleName] = Object.assign({}, _drawerDefaults)
+      }
+
+      return CONFIG.shelves[shelfName].modules[moduleName][key]
+    }
+
+    function setDrawerConfig(shelfName, moduleName, key, value) {
+      if (!CONFIG.shelves[shelfName]) {
+        CONFIG.shelves[shelfName] = Object.assign({}, _shelfDefaults)
+      }
+
+      if (!CONFIG.shelves[shelfName].modules[moduleName]) {
+        CONFIG.shelves[shelfName].modules[moduleName] = Object.assign({}, _drawerDefaults)
+      }
+
+      CONFIG.shelves[shelfName].modules[moduleName][key] = value;
+    }
+
+    function getShelfConfig(shelfName, key) {
+      if (!CONFIG.shelves[shelfName]) {
+        CONFIG.shelves[shelfName] = Object.assign({}, _shelfDefaults)
+      }
+
+      return CONFIG.shelves[shelfName][key];
+    }
+    function setShelfConfig(shelfName, key, value) {
+      if (!CONFIG.shelves[shelfName]) {
+        console.log('No shelf config, defaulting')
+        CONFIG.shelves[shelfName] = Object.assign({}, _shelfDefaults)
+      }
+      console.log('Set CONFIG.shelves.' + shelfName + '.' + key + ' = ' + value)
+      CONFIG.shelves[shelfName][key] = value;
+    }
+
+    generateShelfSettings('Shelf 1');
+  </script>
+  <script src="lib/openjscad/opt.js"></script>
+<!-- setup display of the errors as required by OpenJSCAD.js -->
+  <div class="jscad-container">
+    <div id="header">
+      <div id="errordiv" style="color:red;">ERROR</div>
+    </div>
+
+<!-- setup display of the viewer, i.e. canvas -->
+    <div oncontextmenu="return false;" id="viewerContext" design-url="build/box.jscad"></div>
+
+<!-- setup display of the status, as required by OpenJSCAD.js -->
+<!-- set display: block to display this -->
+    <div id="tail" style="position:absolute;top:0;right:0">
+      <div id="statusdiv"></div>
+    </div>
+  </div>
+  
+<p style="position:absolute;bottom:0;left:0;margin:0">
+Made with 
+<a href="https://github.com/Spiritdude/OpenJSCAD.org" target=_blank>OpenJSCAD</a> and
+<a href="https://github.com/bit101/quicksettings" target=_blank>quicksettings</a>
+</p>
+
+
+</body>
+
+</html>
